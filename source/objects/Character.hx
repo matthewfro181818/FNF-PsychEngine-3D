@@ -577,7 +577,7 @@ class Character extends FlxSprite
 		if (curCharacter == 'nothing')
 			return;
 
-		if (!isModel && (!debugMode || ignoreDebug) && !atlasActive)
+		if (!isModel && (!debugMode || ignoreDebug))
 		{
 			switch (curCharacter)
 			{
@@ -757,9 +757,114 @@ class Character extends FlxSprite
 		animOffsets[name] = [x, y];
 	}
 
+	function animationEnd(name:String)
+	{
+		if (isModel)
+		{
+		}
+		else
+		{
+			var theAnim = (getCurAnim() : name);
+			switch (curCharacter)
+			{
+				case "dad" | "mom" | "mom-car" | "bf-car":
+					if (!theAnim.contains('miss'))
+					{
+						playAnim(theAnim, true, false, getFrameCount(theAnim) - 4);
+					}
+
+				case "bf" | "bf-christmas":
+					if (theAnim.contains("miss"))
+					{
+						playAnim(theAnim, true, false, getFrameCount(theAnim) - 4);
+					}
+
+				case "monster-christmas" | "monster":
+					switch (theAnim)
+					{
+						case "idle":
+							playAnim(theAnim, false, false, 10);
+						case "singUP":
+							playAnim(theAnim, false, false, 8);
+						case "singDOWN":
+							playAnim(theAnim, false, false, 7);
+						case "singLEFT":
+							playAnim(theAnim, false, false, 5);
+						case "singRIGHT":
+							playAnim(theAnim, false, false, 6);
+					}
+			}
+		}
+		var theAnim = (getCurAnim() : name);
+		if (theAnim == 'dodge' || theAnim == 'hit' || theAnim == 'attack')
+		{
+			canAutoIdle = true;
+			idleEnd();
+		}
+	}
+
+	public function getCurAnim()
+	{
+		if (curCharacter == 'nothing')
+			return "";
+
+		if (isModel)
+		{
+			if (model != null && model.fullyLoaded)
+				return model.currentAnim;
+			else
+				return "";
+		}
+		else
+			return animation.curAnim.name;
+	}
+
+	public function getFrameCount(name:String)
+	{
+		else if (!isModel)
+		{
+			return animation.getByName(name).numFrames;
+		}
+		return -1;
+	}
 	public function quickAnimAdd(name:String, anim:String)
 	{
 		animation.addByPrefix(name, anim, 24, false);
+	}
+
+	public function animExists(anim:String)
+	{
+		if (isModel)
+		{
+			if (model != null && model.fullyLoaded)
+				return model.animationSet.hasAnimation(anim);
+			else
+				return false;
+		}
+		else
+			return animation.getByName(anim) != null;
+	}
+
+	public function getCurAnimFinished()
+	{
+		return animation.curAnim.finished;
+	}
+
+	public function tryLoadModel()
+	{
+		if (!isModel)
+			return;
+		if (modelMutex)
+			return;
+		if (isModel && beganLoading)
+			return;
+		if (isModel && !beganLoading)
+		{
+			beganLoading = true;
+			modelMutex = true;
+			model = new ModelThing(this);
+			modelMutexThing = model;
+		}
 	}
 
 	// Atlas support
@@ -831,6 +936,35 @@ class Character extends FlxSprite
 
 	public override function destroy()
 	{
+		if (isModel)
+		{
+			if (modelMutexThing == model)
+			{
+				modelMutexThing = null;
+				modelMutex = false;
+			}
+			if (model != null)
+				model.destroy();
+			model = null;
+			if (modelView != null)
+				modelView.destroy();
+			modelView = null;
+			if (animSpeed != null)
+			{
+				animSpeed.clear();
+				animSpeed = null;
+			}
+		}
+		if (animRedirect != null)
+		{
+			animRedirect.clear();
+			animRedirect = null;
+		}
+		if (animRedirect != null)
+		{
+			animRedirect.clear();
+			animRedirect = null;
+		}
 		atlas = FlxDestroyUtil.destroy(atlas);
 		super.destroy();
 	}
