@@ -233,6 +233,12 @@ class Character extends FlxSprite
 			case 'pico-blazin', 'darnell-blazin':
 				skipDance = true;
 		}
+		if (isModel)
+		{
+			modelView = new ModelView(viewX, viewY, ambient, specular, diffuse);
+			loadGraphicFromSprite(modelView.sprite);
+			antialiasing = true;
+		}
 	}
 
 	public function changeCharacter(character:String)
@@ -371,6 +377,14 @@ class Character extends FlxSprite
 
 	override function update(elapsed:Float)
 	{
+		tryLoadModel();
+
+		if (isModel && model != null && model.fullyLoaded && modelView != null)
+		{
+			modelView.update();
+			model.update();
+		}
+
 		if(isAnimateAtlas) atlas.update(elapsed);
 
 		if(debugMode || (!isAnimateAtlas && animation.curAnim == null) || (isAnimateAtlas && (atlas.anim.curInstance == null || atlas.anim.curSymbol == null)))
@@ -492,7 +506,7 @@ class Character extends FlxSprite
 	 */
 	public function dance()
 	{
-		if (!debugMode && !skipDance && !specialAnim)
+		if (!debugMode && !skipDance && !specialAnim && !isModel))
 		{
 			if(danceIdle)
 			{
@@ -505,6 +519,22 @@ class Character extends FlxSprite
 			}
 			else if(hasAnimation('idle' + idleSuffix))
 				playAnim('idle' + idleSuffix);
+		}
+		else if (holdTimer == 0)
+		{
+			if (isModel && model == null)
+			{
+				trace("NO DANCE - NO MODEL");
+				return;
+			}
+			if (isModel && !model.fullyLoaded)
+			{
+				trace("NO DANCE - NO FULLY LOAD");
+				return;
+			}
+			if (isModel && !noLoopList.contains('idle'))
+				return;
+			playAnim('idle', true);
 		}
 	}
 
@@ -540,6 +570,142 @@ class Character extends FlxSprite
 			if (AnimName == 'singUP' || AnimName == 'singDOWN')
 				danced = !danced;
 		}
+	}
+
+	public function idleEnd(?ignoreDebug:Bool = false)
+	{
+		if (curCharacter == 'nothing')
+			return;
+
+		if (!isModel && (!debugMode || ignoreDebug) && !atlasActive)
+		{
+			switch (curCharacter)
+			{
+				case 'gf' | 'gf-car' | 'gf-christmas' | 'gf-pixel' | "spooky" | "senpai" | "gfSinger":
+					playAnim('danceRight', true, false, animation.getByName('danceRight').numFrames - 1);
+				default:
+					playAnim('idle', true, false, animation.getByName('idle').numFrames - 1);
+			}
+		}
+		else if (!isModel && (!debugMode || ignoreDebug))
+		{
+			switch (curCharacter)
+			{
+				case 'gf' | 'gf-car' | 'gf-christmas' | 'gf-pixel' | "spooky" | "senpai" | "gfSinger":
+					playAnim('danceRight', true, false, atlasContainer.maxIndex[animRedirect['danceRight']]);
+				default:
+					playAnim('idle', true, false, atlasContainer.maxIndex[animRedirect['idle']]);
+			}
+		}
+		else if (isModel && (!debugMode || ignoreDebug))
+		{
+			if (animExists(getCurAnim() + "End"))
+				playAnim(getCurAnim() + "End", true, false);
+			else
+				playAnim('idleEnd', true, false);
+		}
+	}
+
+	public function playAnim(AnimName:String, Force:Bool = false, Reversed:Bool = false, Frame:Int = 0):Void
+	{
+		if (curCharacter == 'nothing')
+			return;
+
+		if (AnimName.endsWith('-alt') && !animExists(AnimName))
+		{
+			AnimName = AnimName.substring(0, AnimName.length - 4);
+		}
+
+		if (isModel && model != null && model.fullyLoaded)
+		{
+			if (AnimName.endsWith('miss'))
+				color = 0x5462bf;
+			else
+				color = 0xffffff;
+			model.playAnim(AnimName, Force, Frame);
+		}
+		else if (!isModel)
+		{
+			var daAnim:String = AnimName;
+
+			if (!Force && !getCurAnimFinished())
+				return;
+
+			if (AnimName.endsWith('miss'))
+			{
+				daAnim = AnimName.substring(0, AnimName.length - 4);
+				color = 0x5462bf;
+			}
+			else
+				color = 0xffffff;
+
+			var daOffset = animOffsets.get(daAnim);
+			updateHitbox();
+
+			if (curCharacter == 'gf')
+			{
+				if (AnimName == 'singLEFT')
+				{
+					danced = true;
+				}
+				else if (AnimName == 'singRIGHT')
+				{
+					danced = false;
+				}
+
+				if (AnimName == 'singUP' || AnimName == 'singDOWN')
+				{
+					danced = !danced;
+				}
+			}
+		}
+		else if (!isModel)
+		{
+			var daAnim:String = AnimName;
+			if (AnimName.endsWith('miss') && animation.getByName(AnimName) == null)
+			{
+				daAnim = AnimName.substring(0, AnimName.length - 4);
+				color = 0x5462bf;
+			}
+			else
+				color = 0xffffff;
+
+			animation.play(daAnim, Force, Reversed, Frame);
+
+			updateHitbox();
+
+			var daOffset = animOffsets.get(animation.curAnim.name);
+			if (animOffsets.exists(animation.curAnim.name))
+			{
+				if (initFrameWidth > -1)
+					offset.set(((facing != initFacing ? -1 : 1) * daOffset[0] + (facing != initFacing ? frameWidth - initFrameWidth : 0)) * scale.x + offset.x,
+						daOffset[1] * scale.y + offset.y);
+				else
+					offset.set(daOffset[0] * scale.x + offset.x, daOffset[1] * scale.y + offset.y);
+			}
+			else
+				offset.set(0, 0);
+
+			if (curCharacter == 'gf')
+			{
+				if (AnimName == 'singLEFT')
+				{
+					danced = true;
+				}
+				else if (AnimName == 'singRIGHT')
+				{
+					danced = false;
+				}
+
+				if (AnimName == 'singUP' || AnimName == 'singDOWN')
+				{
+					danced = !danced;
+				}
+			}
+		}
+
+		if (AnimName.contains('sing'))
+			canAutoIdle = true;
 	}
 
 	function loadMappedAnims():Void
